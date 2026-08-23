@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import type { ToolContext } from "@opencode-ai/plugin"
@@ -251,8 +258,15 @@ describe("image tools", () => {
   })
 
   test("forbids an edit output that names its project source before POST", async () => {
-    const worktree = await temporaryDirectory()
-    await writeFile(path.join(worktree, "source.png"), PNG)
+    const canonicalWorktree = await temporaryDirectory()
+    const aliasParent = await temporaryDirectory()
+    const worktree = path.join(aliasParent, "worktree-alias")
+    await symlink(
+      canonicalWorktree,
+      worktree,
+      process.platform === "win32" ? "junction" : "dir",
+    )
+    await writeFile(path.join(canonicalWorktree, "source.png"), PNG)
     let generated = false
     const tool = createEditImageTool(
       dependencies({ worktree, onGenerate: () => (generated = true) }),
@@ -263,6 +277,35 @@ describe("image tools", () => {
           prompt: "make a variation",
           references: [{ type: "project_file", path: "source.png" }],
           output_path: "source.png",
+        },
+        context(worktree),
+      ),
+    ).rejects.toMatchObject({ code: "GENIMAGE_SOURCE_OVERWRITE_FORBIDDEN" })
+    expect(generated).toBeFalse()
+  })
+
+  test("forbids an edit output that aliases its project source before POST", async () => {
+    const worktree = await temporaryDirectory()
+    const sourceDirectory = path.join(worktree, "source-directory")
+    await mkdir(sourceDirectory)
+    await symlink(
+      sourceDirectory,
+      path.join(worktree, "source-alias"),
+      process.platform === "win32" ? "junction" : "dir",
+    )
+    await writeFile(path.join(sourceDirectory, "source.png"), PNG)
+    let generated = false
+    const tool = createEditImageTool(
+      dependencies({ worktree, onGenerate: () => (generated = true) }),
+    )
+    await expect(
+      tool.execute(
+        {
+          prompt: "make a variation",
+          references: [
+            { type: "project_file", path: "source-directory/source.png" },
+          ],
+          output_path: "source-alias/source.png",
         },
         context(worktree),
       ),

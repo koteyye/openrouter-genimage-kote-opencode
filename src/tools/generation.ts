@@ -18,7 +18,10 @@ import {
   saveImages,
   type SavedImage,
 } from "../output/index.js"
-import { sameCanonicalPath } from "../references/project-files.js"
+import {
+  isPathInside,
+  sameCanonicalPath,
+} from "../references/project-files.js"
 import type { ResolvedReferences } from "../references/attachments.js"
 import type { RuntimeServices, ToolDependencies } from "./types.js"
 
@@ -33,6 +36,30 @@ interface FinishGenerationOptions {
   dependencies: ToolDependencies
   context: ToolContext
   references?: ResolvedReferences
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  )
+}
+
+async function canonicalizeExistingOutput(
+  absolute: string,
+): Promise<string | undefined> {
+  try {
+    return await realpath(absolute)
+  } catch (error) {
+    if (isMissingPathError(error)) return undefined
+    throw new PluginError(
+      "GENIMAGE_OUTPUT_WRITE_FAILED",
+      "The output path could not be inspected before generation.",
+      { cause: error },
+    )
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -86,14 +113,37 @@ export async function preflightOutput(
     args.output_path === undefined
       ? configuredDirectory
       : assertSafeOutputRelativePath(args.output_path)
-  const absolute = path.resolve(context.worktree, relative.replaceAll("/", path.sep))
   const canonicalWorktree = await realpath(context.worktree)
+  const absolute = path.resolve(
+    canonicalWorktree,
+    relative.replaceAll("/", path.sep),
+  )
   await assertOutputParentContained(
     canonicalWorktree,
     args.output_path === undefined ? absolute : path.dirname(absolute),
   )
+  const canonicalOutput =
+    args.output_path === undefined
+      ? undefined
+      : await canonicalizeExistingOutput(absolute)
+  if (
+    canonicalOutput !== undefined &&
+    !isPathInside(canonicalWorktree, canonicalOutput)
+  ) {
+    throw new PluginError(
+      "GENIMAGE_OUTPUT_OUTSIDE_WORKTREE",
+      "The output path resolves outside the OpenCode worktree.",
+    )
+  }
 
-  if ([...sourcePaths].some((source) => sameCanonicalPath(source, absolute))) {
+  if (
+    [...sourcePaths].some(
+      (source) =>
+        sameCanonicalPath(source, absolute) ||
+        (canonicalOutput !== undefined &&
+          sameCanonicalPath(source, canonicalOutput)),
+    )
+  ) {
     throw new PluginError(
       "GENIMAGE_SOURCE_OVERWRITE_FORBIDDEN",
       "The output path may not overwrite a source image.",
