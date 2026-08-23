@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.tgz
+.npm-cache/
+.tmp-pack/
+.bun-cache/
+.env
+.env.*
+!.env.example
+assets/generated/
