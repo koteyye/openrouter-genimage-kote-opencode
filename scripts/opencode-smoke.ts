@@ -133,6 +133,12 @@ function isolatedEnvironment(home: string): NodeJS.ProcessEnv {
     XDG_STATE_HOME: join(home, ".local", "state"),
     OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugin: [] }),
     OPENCODE_DISABLE_AUTOUPDATE: "true",
+    OPENCODE_DISABLE_DEFAULT_PLUGINS: "1",
+    OPENCODE_DISABLE_EXTERNAL_SKILLS: "1",
+    OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
+    OPENCODE_DISABLE_MODELS_FETCH: "1",
+    OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+    NPM_CONFIG_OFFLINE: "true",
     HTTP_PROXY: "http://127.0.0.1:9",
     HTTPS_PROXY: "http://127.0.0.1:9",
     ALL_PROXY: "http://127.0.0.1:9",
@@ -146,6 +152,19 @@ function diagnosticSummary(value: string): string {
   return bytes === 0
     ? "No diagnostic output was emitted."
     : `${bytes} bytes of diagnostic output were suppressed.`
+}
+
+async function timedOutEvidenceSummary(evidencePath: string): Promise<string> {
+  try {
+    const evidence = parseEvidence(
+      JSON.parse(await readFile(evidencePath, "utf8")) as unknown,
+    )
+    return evidence.configApplied
+      ? "plugin registration completed before the timeout"
+      : "the plugin loaded but its config hook did not complete"
+  } catch {
+    return "the plugin did not produce registration evidence"
+  }
 }
 
 function unavailable(reason: string, strict: boolean): OpenCodeSmokeOutcome {
@@ -391,7 +410,11 @@ export async function runOpenCodeSmoke(
       { cwd: project, env: environment, timeoutMs },
     )
     if (result.timedOut) {
-      return unavailable("the runtime configuration probe timed out", strict)
+      const evidenceSummary = await timedOutEvidenceSummary(evidencePath)
+      return unavailable(
+        `the runtime configuration probe timed out (${evidenceSummary})`,
+        strict,
+      )
     }
     if (result.exitCode !== 0) {
       throw new Error(
