@@ -209,9 +209,9 @@ Project install пишет `.opencode/skills/openrouter-image-generation/SKILL.m
 
 ## Статус совместимости
 
-- Baseline OpenCode smoke tests: **1.18.21**. CI настроен на baseline и latest, но attachments в TUI и Desktop всё ещё требуют ручной release-проверки; Web — если доступен.
-- `@koteye/kote-gateway-opencode` **0.1.1** ограничивает совместимость `@opencode-ai/plugin`/OpenCode версией **1.18.18**, тогда как этот пакет нацелен на **1.18.21**. Поэтому текущая сборка фиксирует SDK **1.18.18** и не может считаться полностью готовой к публикации под baseline, пока reusable gateway core не будет выпущен отдельно без OpenCode peer либо диапазон gateway package не обновится.
-- Synthetic TLS/CONNECT tests проходят для signed bootstrap, fail-closed routing, одного CONNECT и обоих порядков загрузки. Они не снимают package-range blocker выше и необходимость реальных client smoke checks.
+- Baseline OpenCode smoke tests: **1.18.21**. CI проверяет установленный npm tarball на baseline и latest stable. Attachments в TUI и Desktop всё ещё требуют ручной release-проверки; Web — если доступен.
+- Этот пакет использует только reusable export `/core` из `@koteye/kote-gateway-opencode` **0.1.1**. Gateway adapter объявляет потолок OpenCode/SDK **1.18.18**, поэтому здесь зафиксирован `@opencode-ai/plugin` **1.18.18**, удовлетворяющий peer metadata. Core export не импортирует OpenCode adapter во время выполнения, а полный установленный tarball проходит smoke tests на OpenCode **1.18.21** и latest.
+- Synthetic TLS/CONNECT tests проходят для signed bootstrap, fail-closed routing, одного CONNECT и обоих порядков загрузки. Они дополняют реальные OpenCode registration smokes; платный OpenRouter E2E и отображение attachments в клиентском UI остаются отдельными opt-in/manual проверками.
 - Package объявляет Node.js 20+. Реализация рассчитана на Bun и Windows/macOS/Linux, но release artifacts должны быть проверены на поддерживаемой матрице.
 
 ## Документация

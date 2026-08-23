@@ -5,6 +5,23 @@
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koteyye/openrouter-genimage-kote-opencode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/koteyye/openrouter-genimage-kote-opencode/issues"
+  },
+  "homepage": "https://github.com/koteyye/openrouter-genimage-kote-opencode#readme",
+  "keywords": [
+    "opencode",
+    "openrouter",
+    "image-generation",
+    "image-to-image",
+    "plugin",
+    "kote-gateway"
+  ],
+  "packageManager": "bun@1.3.14",
   "main": "./dist/server.js",
   "types": "./dist/server.d.ts",
   "exports": {
@@ -20,7 +37,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "openrouter-genimage-kote-opencode": "./dist/cli.js"
+    "openrouter-genimage-kote-opencode": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -52,7 +69,8 @@
     "test:smoke": "bun test tests/smoke",
     "test:e2e": "bun test tests/e2e",
     "opencode:smoke": "bun run build && bun scripts/opencode-smoke.ts",
-    "package:smoke": "bun run build && bun scripts/package-smoke.ts"
+    "package:smoke": "bun run build && bun scripts/package-smoke.ts",
+    "prepack": "bun run build"
   },
   "dependencies": {
     "@koteye/kote-gateway-opencode": "0.1.1",

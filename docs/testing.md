@@ -52,7 +52,7 @@ The baseline runtime is OpenCode **1.18.21**; the scaffold currently pins `@open
 
 The CLI configuration probe does not execute a tool, so it does not validate `sessionID`/`messageID` tool context, a returned ToolResult attachment, or TUI/Desktop/Web rendering. Those are separate manual real-host release checks. Test the latest stable OpenCode again at release time.
 
-The synthetic KoteGateway proxy/coexistence matrix runs in ordinary integration tests. A real OpenCode runtime smoke and the package-range issue described in the README remain separate release gates.
+The synthetic KoteGateway proxy/coexistence matrix runs in ordinary integration tests. CI also loads the installed tarball in real baseline/latest OpenCode runtimes. The KoteGateway adapter's narrower peer metadata is documented in the README; this plugin consumes its runtime-independent `/core` export.
 
 Skill CLI tests cover project and global paths (the latter is always `~/.config/opencode/...`, including Windows), `check-skill --global`, nonzero checks for missing/modified files, SHA-256 no-op installs, refusal to replace modifications without `--force`, and atomic forced replacement.
 

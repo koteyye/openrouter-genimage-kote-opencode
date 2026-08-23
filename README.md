@@ -209,9 +209,9 @@ See the complete [Troubleshooting guide](docs/troubleshooting.md), [Configuratio
 
 ## Compatibility status
 
-- OpenCode smoke-test baseline: **1.18.21**. CI is configured to test that baseline and the latest release, but TUI and Desktop attachment rendering still require manual release checks; Web is tested when available.
-- `@koteye/kote-gateway-opencode` **0.1.1** declares an `@opencode-ai/plugin`/OpenCode compatibility ceiling of **1.18.18**, while this package targets **1.18.21**. The current build therefore pins the SDK to **1.18.18** and is not publishable as fully baseline-compatible until the reusable gateway core is released independently (without the OpenCode peer) or the gateway package range is updated.
-- Synthetic TLS/CONNECT tests pass for signed bootstrap, fail-closed routing, one CONNECT, and both plugin load orders. They do not waive the package-range blocker above or the real-client smoke checks.
+- OpenCode smoke-test baseline: **1.18.21**. CI verifies the installed npm tarball on that baseline and the latest stable release. TUI and Desktop attachment rendering still require manual release checks; Web is tested when available.
+- This package consumes only the reusable `/core` export from `@koteye/kote-gateway-opencode` **0.1.1**. The gateway adapter package declares an OpenCode/SDK ceiling of **1.18.18**, so this package pins `@opencode-ai/plugin` **1.18.18** to satisfy that peer metadata. The core export does not import the OpenCode adapter at runtime, and the complete installed tarball is smoke-tested on OpenCode **1.18.21** and latest.
+- Synthetic TLS/CONNECT tests pass for signed bootstrap, fail-closed routing, one CONNECT, and both plugin load orders. They complement the real OpenCode registration smokes; paid OpenRouter E2E and client UI attachment rendering remain separate opt-in/manual checks.
 - Node.js 20 or newer is declared by the package. The implementation is intended to be Bun-compatible and to support Windows, macOS, and Linux; release artifacts must be tested on the supported matrix.
 
 ## Documentation
