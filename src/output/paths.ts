@@ -8,15 +8,15 @@ import {
   sameCanonicalPath,
 } from "../references/project-files.js"
 import {
-  formatFromExtension,
-  type DetectedImageFormat,
+  outputFormatFromExtension,
+  type DetectedOutputImageFormat,
 } from "../references/formats.js"
 
 export interface OutputPathRequest {
   worktree: string
   outputDirectory: string
   outputPath?: string | undefined
-  detectedFormats: readonly DetectedImageFormat[]
+  detectedFormats: readonly DetectedOutputImageFormat[]
   sourcePaths?: readonly string[] | undefined
   now?: Date | undefined
   randomId?: (() => string) | undefined
@@ -213,10 +213,10 @@ function safeShortId(randomId: (() => string) | undefined): string {
 
 function replaceWithActualExtension(
   relativePath: string,
-  detected: DetectedImageFormat,
+  detected: DetectedOutputImageFormat,
 ): { relativePath: string; warning?: string | undefined } {
   const parsed = path.posix.parse(relativePath)
-  const requestedFormat = formatFromExtension(parsed.ext)
+  const requestedFormat = outputFormatFromExtension(parsed.ext)
   if (requestedFormat === detected.format) return { relativePath }
 
   const corrected = path.posix.join(

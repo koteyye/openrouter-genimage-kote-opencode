@@ -3,7 +3,10 @@ import { link, open, unlink } from "node:fs/promises"
 import path from "node:path"
 
 import { PluginError, isPluginError } from "../openrouter/errors.js"
-import { detectImageFormat, type DetectedImageFormat } from "../references/formats.js"
+import {
+  detectOutputImageFormat,
+  type DetectedOutputImageFormat,
+} from "../references/formats.js"
 import { isAbortError, throwIfAborted } from "../utils/abort.js"
 import type { ValidatedImage } from "./formats.js"
 import {
@@ -30,10 +33,10 @@ export interface SavedImage {
   absolutePath: string
   relativePath: string
   filename: string
-  mime: DetectedImageFormat["mime"]
+  mime: DetectedOutputImageFormat["mime"]
   bytes: number
   data: Buffer
-  detected: DetectedImageFormat
+  detected: DetectedOutputImageFormat
   warnings: string[]
 }
 
@@ -61,7 +64,7 @@ function outputWriteError(message: string, cause: unknown): PluginError {
 }
 
 function validatedActualImage(image: ValidatedImage): ValidatedImage {
-  const actual = detectImageFormat(image.bytes)
+  const actual = detectOutputImageFormat(image.bytes)
   if (actual === undefined) {
     throw new PluginError(
       "GENIMAGE_IMAGE_INVALID",

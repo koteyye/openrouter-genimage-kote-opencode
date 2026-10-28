@@ -258,6 +258,26 @@ describe("OpenRouter HTTP client", () => {
     }
   })
 
+  test("parses configured and effective key budgets", async () => {
+    const budget = {
+      scope: "member",
+      limit_usd: 50,
+      spend_usd: 32.5,
+      remaining_usd: 17.5,
+      reset_interval: "weekly" as const,
+      resets_at: "2026-10-12T00:00:00.000Z",
+      include_byok: false,
+    }
+    const transport = new ScriptedTransport(() =>
+      jsonResponse({ data: { budgets: [budget], effective_budget: budget } }),
+    )
+
+    const key = await client(transport).getCurrentKey(new AbortController().signal)
+
+    expect(key.budgets).toEqual([budget])
+    expect(key.effective_budget).toEqual(budget)
+  })
+
   test("retries only read-only GET failures and honors retry timing", async () => {
     const delays: number[] = []
     const transport = new ScriptedTransport((_request, attempt) => {
@@ -480,6 +500,137 @@ describe("OpenRouter HTTP client", () => {
     expect(safeSurface).not.toContain(GENERATION_KEY)
     expect(safeSurface).not.toContain("private-prompt")
     expect(safeSurface).not.toContain("c2VjcmV0LWltYWdl")
+  })
+
+  test("uses allowlisted error metadata for transient budgets and retry timing", async () => {
+    const secret = "private upstream message"
+    const transport = new ScriptedTransport(() =>
+      jsonResponse(
+        {
+          error: {
+            code: 402,
+            message: secret,
+            metadata: {
+              error_type: "payment_required",
+              reason: "in_flight_budget_exhausted",
+              limit_source: "openrouter_in_flight_budget",
+              remedy_hint: secret,
+            },
+          },
+        },
+        { status: 402, headers: { "retry-after": "7" } },
+      ),
+    )
+
+    const error = await pluginError(
+      client(transport).generateImage(
+        { model: MODEL_ID, prompt: "private prompt" },
+        new AbortController().signal,
+      ),
+    )
+
+    expect(error.code).toBe("GENIMAGE_INSUFFICIENT_CREDITS")
+    expect(error.message).toContain("in-flight spending budget")
+    expect(error.suggestion).toContain("7 second(s)")
+    expect(error.details).toEqual({
+      status: 402,
+      retryAfterMs: 7_000,
+      errorType: "payment_required",
+      reason: "in_flight_budget_exhausted",
+      limitSource: "openrouter_in_flight_budget",
+    })
+    expect(JSON.stringify(error.toJSON())).not.toContain(secret)
+  })
+
+  test("reports budget 403, timeout 408, and rate-limit retry details", async () => {
+    const budget = await pluginError(
+      client(
+        new ScriptedTransport(() =>
+          jsonResponse(
+            {
+              error: {
+                metadata: {
+                  limit_source: "openrouter_workspace_budget",
+                  scope: "workspace",
+                  limit_usd: 50,
+                  spend_usd: 52,
+                  remaining_usd: -2,
+                  resets_at: "2026-10-12T00:00:00.000Z",
+                },
+              },
+            },
+            { status: 403 },
+          ),
+        ),
+      ).getCurrentKey(new AbortController().signal),
+    )
+    expect(budget.message).toContain("spending budget")
+    expect(budget.suggestion).toContain("2026-10-12")
+    expect(budget.details).toMatchObject({
+      limitSource: "openrouter_workspace_budget",
+      scope: "workspace",
+      limitUsd: 50,
+      spendUsd: 52,
+      remainingUsd: -2,
+    })
+
+    const timeout = await pluginError(
+      client(new ScriptedTransport(() => jsonResponse({}, { status: 408 })))
+        .getCurrentKey(new AbortController().signal),
+    )
+    expect(timeout.code).toBe("GENIMAGE_TIMEOUT")
+
+    const limited = await pluginError(
+      client(
+        new ScriptedTransport(() =>
+          jsonResponse({}, { status: 429, headers: { "retry-after": "3" } }),
+        ),
+      ).generateImage(
+        { model: MODEL_ID, prompt: "test" },
+        new AbortController().signal,
+      ),
+    )
+    expect(limited.code).toBe("GENIMAGE_RATE_LIMITED")
+    expect(limited.details?.retryAfterMs).toBe(3_000)
+    expect(limited.suggestion).toContain("3 second(s)")
+  })
+
+  test("maps typed image failures and falls back safely for malformed error bodies", async () => {
+    const cases = [
+      ["invalid_image", "GENIMAGE_REFERENCE_INVALID"],
+      ["image_too_large", "GENIMAGE_REFERENCE_TOO_LARGE"],
+      ["unsupported_image_format", "GENIMAGE_REFERENCE_FORMAT_UNSUPPORTED"],
+      ["image_not_found", "GENIMAGE_REFERENCE_NOT_FOUND"],
+      ["image_download_failed", "GENIMAGE_REFERENCE_URL_INVALID"],
+    ] as const
+    for (const [errorType, code] of cases) {
+      const error = await pluginError(
+        client(
+          new ScriptedTransport(() =>
+            jsonResponse(
+              { error: { metadata: { error_type: errorType } } },
+              { status: 400 },
+            ),
+          ),
+        ).generateImage(
+          { model: MODEL_ID, prompt: "test" },
+          new AbortController().signal,
+        ),
+      )
+      expect(error.code).toBe(code)
+      expect(error.details?.errorType).toBe(errorType)
+    }
+
+    for (const body of ["not json", "x".repeat(128)]) {
+      const error = await pluginError(
+        client(
+          new ScriptedTransport(() => new Response(body, { status: 400 })),
+          options("direct", { maxResponseBytes: 32 }),
+        ).getCurrentKey(new AbortController().signal),
+      )
+      expect(error.code).toBe("GENIMAGE_BAD_REQUEST")
+      expect(error.details).toEqual({ status: 400 })
+    }
   })
 
   test("drops an upstream request ID that reflects a configured secret", async () => {

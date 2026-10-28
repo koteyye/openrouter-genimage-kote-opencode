@@ -94,7 +94,7 @@ Defaults are 16 references, 20 MiB per local file, and 50 MiB total local bytes.
 
 Outputs remain inside the worktree. `output_path` must be relative, may not escape through traversal or symlinks, and may not name a source or existing file. Multiple results receive `-01`, `-02`, and similar suffixes. Writes are atomic.
 
-The actual returned bytes determine PNG/JPEG/WebP format and extension. A provider may return fewer results than requested or one invalid item; valid results are preserved and returned as OpenCode attachments with warnings. Cost is displayed only when OpenRouter supplies `usage.cost`.
+The actual returned bytes determine PNG/JPEG/WebP/SVG format and extension. SVG output is accepted only after strict UTF-8, document-structure, and active/external-content checks; SVG reference inputs remain unsupported. A provider may return fewer results than requested or one invalid item; valid results are preserved and returned as OpenCode attachments with warnings. Cost is displayed only when OpenRouter supplies `usage.cost`.
 
 ## Capability failures
 

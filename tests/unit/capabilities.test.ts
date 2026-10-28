@@ -347,6 +347,57 @@ describe("model capability validation", () => {
     expect(client.endpointPaths).toEqual([endpointPath])
   })
 
+  test("resolves routing and catalog variants without changing the request model", async () => {
+    const endpointPath = "/api/v1/images/models/vendor%2Fimage-model/endpoints"
+    const cases = [
+      { configured: `${MODEL_ID}:nitro`, catalog: MODEL_ID },
+      { configured: `${MODEL_ID}:floor:exacto`, catalog: MODEL_ID },
+      { configured: `${MODEL_ID}:free:nitro`, catalog: `${MODEL_ID}:free` },
+    ]
+
+    for (const testCase of cases) {
+      const client = new DiscoveryClientFake(
+        [{ ...imageModel({ endpoints: endpointPath }), id: testCase.catalog }],
+        {
+          id: testCase.catalog,
+          endpoints: [{ supported_parameters: IMAGE_PARAMETERS }],
+        },
+      )
+      const validated = await service(
+        client,
+        pluginOptions({ model: testCase.configured }),
+      ).validate("generate", request({ model: testCase.configured, n: 1 }), SIGNAL)
+
+      expect(validated.id).toBe(testCase.catalog)
+      expect(client.endpointPaths).toEqual([endpointPath])
+    }
+  })
+
+  test("treats quality and compression as ignorable only when unadvertised", async () => {
+    const unadvertised = new DiscoveryClientFake([
+      imageModel({ supportedParameters: { n: { type: "range", min: 1, max: 10 } } }),
+    ])
+    await service(unadvertised).validate(
+      "generate",
+      request({ quality: "max", output_compression: 80 }),
+      SIGNAL,
+    )
+
+    const advertised = new DiscoveryClientFake([
+      imageModel({
+        supportedParameters: {
+          quality: { type: "enum", values: ["high"] },
+          output_compression: { type: "range", min: 0, max: 100 },
+        },
+      }),
+    ])
+    const error = await pluginError(
+      service(advertised).validate("generate", request({ quality: "max" }), SIGNAL),
+    )
+    expect(error.code).toBe("GENIMAGE_PARAMETER_UNSUPPORTED")
+    expect(error.details).toEqual({ model: MODEL_ID, parameter: "quality" })
+  })
+
   test("uses the cache until its TTL expires", async () => {
     let now = 1_000
     const client = new DiscoveryClientFake([imageModel()])

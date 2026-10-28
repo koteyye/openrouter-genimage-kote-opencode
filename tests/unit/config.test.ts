@@ -388,15 +388,28 @@ describe("plugin configuration", () => {
     }
   })
 
+  test("accepts ignorable compression and a negative integer seed", () => {
+    const options = resolvePluginOptions(
+      {
+        routing: "direct",
+        model: "openai/gpt-image-1",
+        apiKey: "generation-key",
+        defaults: { output_format: "png", output_compression: 80, seed: -42 },
+      },
+      {},
+    )
+
+    expect(options.defaults).toEqual({ n: 1, output_format: "png", output_compression: 80, seed: -42 })
+  })
+
   test("rejects incompatible generation defaults", () => {
     const invalidDefaults = [
       { background: "transparent", output_format: "jpeg" },
+      { background: "transparent", output_format: "svg" },
       { background: "transparent" },
-      { output_format: "png", output_compression: 80 },
-      { output_compression: 80 },
       { n: 0 },
       { n: 11 },
-      { seed: -1 },
+      { seed: 1.5 },
     ]
 
     for (const defaults of invalidDefaults) {

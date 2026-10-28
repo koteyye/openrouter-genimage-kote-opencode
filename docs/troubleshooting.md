@@ -28,25 +28,25 @@ Errors use a stable `GENIMAGE_*` code, a safe message, optional sanitized detail
 
 | Code | Cause and action |
 |---|---|
-| `GENIMAGE_MODEL_NOT_FOUND` | Correct the configured OpenRouter model ID. The tool cannot select another model. |
+| `GENIMAGE_MODEL_NOT_FOUND` | Correct the configured OpenRouter model ID. Routing variants are resolved through the base catalog entry; unsupported catalog variants still fail. The tool cannot select another model. |
 | `GENIMAGE_MODEL_DOES_NOT_SUPPORT_IMAGE_INPUT` | Configure a model/endpoint with image input and `input_references`; edit never falls back to generation. |
 | `GENIMAGE_MODEL_DOES_NOT_SUPPORT_IMAGE_OUTPUT` | Configure a model with image output. |
-| `GENIMAGE_PARAMETER_UNSUPPORTED` | Remove the unsupported tool/default parameter or deliberately change the configured model. Also check transparent JPEG, PNG compression, `n`, resolution, and endpoint-specific capabilities. |
+| `GENIMAGE_PARAMETER_UNSUPPORTED` | Remove the unsupported tool/default parameter or deliberately change the configured model. Check transparent output, `n`, resolution, and advertised endpoint-specific capabilities. Unadvertised quality/compression are passed through as ignorable. |
 
 ## OpenRouter
 
 | Code | Cause and action |
 |---|---|
 | `GENIMAGE_OPENROUTER_AUTH` | Verify/recreate the generation key and its environment mapping. Do not paste it into logs/issues. |
-| `GENIMAGE_OPENROUTER_FORBIDDEN` | Check key permissions and endpoint/model access. `/credits` needs management authorization. |
-| `GENIMAGE_INSUFFICIENT_CREDITS` | Add credits or use a key/account with available funds. The plugin cannot purchase credits. |
-| `GENIMAGE_RATE_LIMITED` | Wait for `Retry-After`; safe GETs have bounded retries, but paid POST generation is not retried. |
-| `GENIMAGE_BAD_REQUEST` | Recheck prompt and parameters against model capabilities. |
+| `GENIMAGE_OPENROUTER_FORBIDDEN` | Check key permissions, endpoint/model access, and any reported organization/workspace/key budget. `/credits` needs management authorization. |
+| `GENIMAGE_INSUFFICIENT_CREDITS` | Check account credits and key limits. For an in-flight-budget error, wait for the reported retry delay instead of assuming the account has no funds. The plugin cannot purchase credits. |
+| `GENIMAGE_RATE_LIMITED` | Wait for the reported `Retry-After` delay; safe GETs have bounded retries, but paid POST generation is not retried. |
+| `GENIMAGE_BAD_REQUEST` | Recheck prompt and parameters against model capabilities and any safe typed error metadata. |
 | `GENIMAGE_REQUEST_TOO_LARGE` | Reduce image count/size. Base64 expands local payloads. |
 | `GENIMAGE_PROVIDER_ERROR` | Retry later after checking OpenRouter/provider status. The plugin does not switch provider/model automatically. |
 | `GENIMAGE_TIMEOUT` | Increase `requestTimeoutMs` only if appropriate and check connectivity. An image POST is not retried automatically. |
-| `GENIMAGE_REQUEST_STATUS_UNKNOWN` | The connection failed after submission and the charge/result may be ambiguous. Check OpenRouter activity before manually repeating. |
-| `GENIMAGE_RESPONSE_INVALID` / `GENIMAGE_IMAGE_INVALID` | OpenRouter returned missing, malformed, oversized, unsupported, or MIME-mismatched data. Valid partial results may still be saved with warnings. |
+| `GENIMAGE_REQUEST_STATUS_UNKNOWN` | The connection failed after submission and the generation result is unknown. Check OpenRouter activity before manually repeating. OpenRouter documents failed/cancelled image generations as unbilled. |
+| `GENIMAGE_RESPONSE_INVALID` / `GENIMAGE_IMAGE_INVALID` | OpenRouter returned missing, malformed, oversized, unsupported, unsafe, or MIME-mismatched data. Valid partial results may still be saved with warnings. |
 
 ## KoteGateway
 
@@ -60,13 +60,13 @@ When both gateway packages are installed, verify the tested versions and plugin 
 |---|---|
 | `GENIMAGE_OUTPUT_PATH_INVALID` | Use a relative file path, not an absolute path, drive/UNC path, directory, or traversal. |
 | `GENIMAGE_OUTPUT_OUTSIDE_WORKTREE` | Remove `..` or a symlink that resolves outside `context.worktree`. |
-| `GENIMAGE_OUTPUT_FORMAT_MISMATCH` | Use an extension consistent with the actual PNG/JPEG/WebP bytes; the plugin may correct the saved extension and warn. |
+| `GENIMAGE_OUTPUT_FORMAT_MISMATCH` | Use an extension consistent with the actual PNG/JPEG/WebP/SVG bytes; the plugin may correct the saved extension and warn. |
 | `GENIMAGE_OUTPUT_WRITE_FAILED` | Check directory permissions/free space. Atomic writes should leave no partial final file. Existing files are not overwritten; choose another name. |
 | `GENIMAGE_SOURCE_OVERWRITE_FORBIDDEN` | Choose a destination different from every source reference. |
 
 ## Balance terminology
 
-`Remaining API-key spending limit` comes from `/key` and is not account balance. Full `Account credits` come from `/credits`, require a management key, and may legitimately calculate to a negative value. If credits are unavailable but key usage appears, this is intentional partial success.
+`Remaining API-key spending limit` comes from `/key` and is not account balance. Configured budgets and the effective budget are reported separately because they can block requests before the key limit is exhausted. Full `Account credits` come from `/credits`, require a management key, and may legitimately calculate to a negative value. If credits are unavailable but key usage appears, this is intentional partial success.
 
 ## Safe diagnostic report
 

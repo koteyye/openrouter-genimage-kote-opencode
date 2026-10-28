@@ -9,7 +9,7 @@ import type { ToolDependencies } from "./types.js"
 
 export function createGenerateImageTool(dependencies: ToolDependencies) {
   return tool({
-    description: `Generate a completely new raster image from a text prompt using the OpenRouter image model configured by the user.
+    description: `Generate a completely new image from a text prompt using the OpenRouter image model configured by the user.
 
 Use this tool only when the user requests a new image or asset and no existing image needs to be preserved or used as a visual reference.
 

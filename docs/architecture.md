@@ -42,9 +42,9 @@ Local PNG, JPEG, and WebP bytes are validated using magic bytes and encoded in m
 
 ## Model and request validation
 
-`GET /images/models` and the capability path returned by the model record determine whether the configured model supports image output, image input, `input_references`, and requested optional parameters. Endpoint paths are not reconstructed from the model ID. Cache keys include model ID, TTL, and only a short SHA-256 key fingerprint.
+`GET /images/models` and the capability path returned by the model record determine whether the configured model supports image output, image input, `input_references`, and requested optional parameters. Routing variants are removed only for metadata lookup; catalog variants remain part of the catalog ID, and generation always sends the exact configured model ID. Endpoint paths are not reconstructed from the model ID. Cache keys include model ID, TTL, and only a short SHA-256 key fingerprint.
 
-The plugin never changes the configured model. Unsupported capabilities fail before the paid request when discovery data makes that possible.
+The plugin never changes the configured model. Unsupported capabilities fail before the paid request when discovery data makes that possible. `quality` and `output_compression` are treated as ignorable only when an endpoint does not advertise them; advertised descriptors are enforced.
 
 ## Transports
 
@@ -56,19 +56,21 @@ Synthetic coexistence tests load `@koteye/kote-gateway-opencode` and this plugin
 
 ## HTTP behavior
 
-Production base URL is fixed. Redirect mode is manual and all 3xx responses fail. Safe idempotent GET operations may retry temporary statuses up to two times while respecting `Retry-After` and jitter. `POST /images` is never retried because the generation may already have been charged. An ambiguous disconnect becomes `GENIMAGE_REQUEST_STATUS_UNKNOWN`.
+Production base URL is fixed. Redirect mode is manual and all 3xx responses fail. Safe idempotent GET operations may retry temporary statuses up to two times while respecting `Retry-After` and jitter. `POST /images` is never retried to avoid duplicate generation. An ambiguous disconnect becomes `GENIMAGE_REQUEST_STATUS_UNKNOWN`. OpenRouter documents image billing as all-or-nothing: failed or cancelled generations are not billed, although the client may not learn the generation result after a disconnect.
+
+Error bodies are bounded and parsed without exposing upstream messages. Only allowlisted typed error, provider, budget, limit, reset, and retry fields reach safe diagnostics.
 
 The caller's abort signal, configured timeout, and transport cancellation are combined. Response bodies are streamed with `maxResponseBytes`; decoded images are bounded by `maxDecodedBytes` before persistence.
 
 ## Output and ToolResult
 
-Returned base64 is decoded, validated, and classified by actual magic bytes. PNG, JPEG, and WebP are supported; SVG and unknown formats are rejected. A mismatch between requested and actual format changes the output extension and adds a warning. Valid images from a partially invalid response are saved and returned with warnings.
+Returned base64 is decoded, validated, and classified by actual contents. PNG, JPEG, WebP, and safe SVG are supported for output. SVG requires strict UTF-8 and document-structure validation and rejects active or external content. A mismatch between requested and actual format changes the output extension and adds a warning. Valid images from a partially invalid response are saved and returned with warnings.
 
 Files are written completely to same-directory temporary files and atomically published with a no-clobber hard link. Names avoid collisions; multiple outputs receive numeric suffixes. ToolResult metadata contains safe model/routing/count/path/MIME/size/cost fields, never prompts or base64. Each saved image is also returned as an OpenCode file attachment.
 
 ## Balance flow
 
-`GET /key` uses the generation key and reports key-specific usage and spending limits. `GET /credits` uses the management key and reports account totals. If the generation key explicitly identifies itself as a management key, it may be reused when no separate management key exists. Credits failure does not discard a successful key response. Balance calls are not cached.
+`GET /key` uses the generation key and reports key-specific usage, spending limits, configured budgets, and the effective budget. `GET /credits` uses the management key and reports account totals. If the generation key explicitly identifies itself as a management key, it may be reused when no separate management key exists. Credits failure does not discard a successful key response. Balance calls are not cached.
 
 ## Lifecycle
 

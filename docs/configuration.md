@@ -41,16 +41,16 @@ Values in `defaults` apply to both image tools. A tool argument overrides the co
 
 | Option | Default | Constraints |
 |---|---|---|
-| `aspect_ratio` | omitted | `1:1`, `1:2`, `1:4`, `1:8`, `2:1`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `9:19.5`, `19.5:9`, `9:20`, `20:9`, `9:21`, `21:9`, `auto` |
+| `aspect_ratio` | omitted | `1:1`, `1:2`, `1:4`, `1:8`, `2:1`, `2:3`, `2.35:1`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:2`, `5:4`, `5:7`, `7:5`, `8:1`, `9:16`, `16:9`, `9:19.5`, `19.5:9`, `9:20`, `20:9`, `9:21`, `21:9`, `auto` |
 | `background` | omitted | `auto`, `transparent`, `opaque` |
 | `n` | `1` | integer, 1–10 |
-| `output_format` | omitted | `png`, `jpeg`, `webp` |
-| `output_compression` | omitted | integer, 0–100; JPEG/WebP only |
-| `quality` | omitted | `auto`, `low`, `medium`, `high` |
-| `resolution` | omitted | `512`, `1K`, `2K`, `4K` |
-| `seed` | omitted | non-negative integer |
+| `output_format` | omitted | `png`, `jpeg`, `webp`, `svg` |
+| `output_compression` | omitted | integer, 0–100; used for JPEG/WebP and ignored where inapplicable |
+| `quality` | omitted | `auto`, `low`, `medium`, `high`, `xhigh`, `max` |
+| `resolution` | omitted | `512`, `768`, `1K`, `1.5K`, `2K`, `4K` |
+| `seed` | omitted | integer |
 
-`background: "transparent"` is valid only with PNG or WebP. `output_compression` is valid only with JPEG or WebP. Runtime validation checks these cross-field combinations before network access. Model discovery may reject otherwise valid options when the configured endpoint does not support them.
+`background: "transparent"` is valid only with PNG or WebP. OpenRouter ignores `output_compression` for formats and providers without a compression knob, and ignores `quality` on providers without a quality knob. When an endpoint advertises either capability, the plugin validates the requested value against its descriptor. SVG is supported for generated outputs only; reference inputs remain PNG, JPEG, or WebP.
 
 ## Input limits
 

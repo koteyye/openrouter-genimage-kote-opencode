@@ -172,10 +172,11 @@ Project install пишет `.opencode/skills/openrouter-image-generation/SKILL.m
 
 ## Balance и usage
 
-Запустите `/openrouter-balance` или `openrouter_balance`. Результат разделяет два понятия:
+Запустите `/openrouter-balance` или `openrouter_balance`. Результат разделяет три понятия:
 
-- `/key` возвращает usage и spending limit настроенного API key, включая remaining API-key limit;
-- `/credits` возвращает total credits и total usage аккаунта и требует management key.
+- `/key` возвращает usage, spending limit настроенного API key, configured budgets и effective budget;
+- `/credits` возвращает total credits и total usage аккаунта и требует management key;
+- effective budget может запретить расходы раньше, чем исчерпан лимит API key.
 
 Оставшийся лимит отдельного ключа — не баланс аккаунта OpenRouter. Без management authorization account credits показываются как unavailable. Если `/credits` упал, успешные данные `/key` всё равно возвращаются.
 
@@ -193,7 +194,7 @@ Project install пишет `.opencode/skills/openrouter-image-generation/SKILL.m
 
 ## Ограничения версии 0.1.0
 
-Нет masks и гарантированного локального inpainting, интерактивного редактора, LoRA, video, streaming, SVG, provider-specific options, автоматической покупки credits, автоматического выбора модели, скрытых fallback и внешнего object storage. Поддерживаются только PNG, JPEG и WebP. Seed не гарантирует воспроизводимость между providers. OpenRouter может вернуть меньше изображений, чем запрошено; валидные partial results сохраняются с warning.
+Нет masks и гарантированного локального inpainting, интерактивного редактора, LoRA, video, streaming, provider-specific options, автоматической покупки credits, автоматического выбора модели, скрытых fallback и внешнего object storage. Inputs поддерживают PNG, JPEG и WebP; outputs дополнительно поддерживают проверенный безопасный SVG. Seed не гарантирует воспроизводимость между providers. OpenRouter может вернуть меньше изображений, чем запрошено; валидные partial results сохраняются с warning.
 
 ## Troubleshooting
 

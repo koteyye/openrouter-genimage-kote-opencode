@@ -4,10 +4,10 @@ import type { ImageOutputFormat } from "../config/types.js"
 import { PluginError, isPluginError } from "../openrouter/errors.js"
 import { decodeStrictBase64 } from "../references/data-url.js"
 import {
-  detectImageFormat,
-  isSupportedImageMime,
-  type DetectedImageFormat,
-  type RasterImageMime,
+  detectOutputImageFormat,
+  isSupportedOutputImageMime,
+  type DetectedOutputImageFormat,
+  type OutputImageMime,
 } from "../references/formats.js"
 
 export interface EncodedOutputImage {
@@ -17,7 +17,7 @@ export interface EncodedOutputImage {
 
 export interface ValidatedImage {
   bytes: Buffer
-  detected: DetectedImageFormat
+  detected: DetectedOutputImageFormat
   warnings?: readonly string[] | undefined
 }
 
@@ -77,7 +77,7 @@ function normalizeDeclaredMime(value: string): string {
 function addDeclaredMimeWarning(
   warnings: string[],
   declaredMime: string | undefined,
-  actualMime: RasterImageMime,
+  actualMime: OutputImageMime,
   index: number | undefined,
 ): void {
   if (declaredMime === undefined) return
@@ -85,7 +85,7 @@ function addDeclaredMimeWarning(
   const normalized = normalizeDeclaredMime(declaredMime)
   if (normalized === actualMime) return
 
-  const declaration = isSupportedImageMime(normalized)
+  const declaration = isSupportedOutputImageMime(normalized)
     ? normalized
     : "an unsupported media type"
   warnings.push(
@@ -96,7 +96,7 @@ function addDeclaredMimeWarning(
 function addExpectedFormatWarning(
   warnings: string[],
   expectedFormat: ImageOutputFormat | undefined,
-  detected: DetectedImageFormat,
+  detected: DetectedOutputImageFormat,
   index: number | undefined,
 ): void {
   if (expectedFormat === undefined || expectedFormat === detected.format) return
@@ -106,9 +106,8 @@ function addExpectedFormatWarning(
 }
 
 /**
- * Strictly decodes one OpenRouter image result and classifies it from magic
- * bytes. Provider media-type fields are advisory and can only produce a
- * warning; they never override the binary format.
+ * Strictly decodes one OpenRouter image result and classifies its actual bytes.
+ * Provider media-type fields are advisory and never override detection.
  */
 export function decodeOutputImage(
   image: unknown,
@@ -143,10 +142,10 @@ export function decodeOutputImage(
     )
   }
 
-  const detected = detectImageFormat(bytes)
+  const detected = detectOutputImageFormat(bytes)
   if (detected === undefined) {
     throw invalidImage(
-      "OpenRouter returned an unsupported image binary; only PNG, JPEG, and WebP are accepted.",
+      "OpenRouter returned an unsupported or unsafe image; only PNG, JPEG, WebP, and safe SVG are accepted.",
     )
   }
 
@@ -221,7 +220,7 @@ export function decodeOutputImages(
   if (images.length === 0) {
     throw new PluginError(
       "GENIMAGE_IMAGE_INVALID",
-      "OpenRouter did not return any valid PNG, JPEG, or WebP images.",
+      "OpenRouter did not return any valid PNG, JPEG, WebP, or safe SVG images.",
       { details: { returnedCount: entries.length, invalidCount } },
     )
   }

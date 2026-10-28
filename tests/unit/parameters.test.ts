@@ -110,31 +110,22 @@ describe("OpenRouter image request parameters", () => {
     }
   })
 
-  test("rejects transparent JPEG before a request can be sent", () => {
-    const error = getPluginError(() =>
-      buildTextToImageRequest(options(), {
-        prompt: "transparent asset",
-        background: "transparent",
-        output_format: "jpeg",
-      }),
-    )
+  test("rejects transparent output without an alpha-capable raster format", () => {
+    for (const output_format of ["jpeg", "svg", undefined] as const) {
+      const error = getPluginError(() =>
+        buildTextToImageRequest(options(), {
+          prompt: "transparent asset",
+          background: "transparent",
+          output_format,
+        }),
+      )
 
-    expect(error.code).toBe("GENIMAGE_PARAMETER_UNSUPPORTED")
+      expect(error.code).toBe("GENIMAGE_PARAMETER_UNSUPPORTED")
+    }
   })
 
-  test("rejects a transparent background when no output format can be resolved", () => {
-    const error = getPluginError(() =>
-      buildTextToImageRequest(options(), {
-        prompt: "transparent asset",
-        background: "transparent",
-      }),
-    )
-
-    expect(error.code).toBe("GENIMAGE_PARAMETER_UNSUPPORTED")
-  })
-
-  test("allows compression for JPEG and WebP", () => {
-    for (const output_format of ["jpeg", "webp"] as const) {
+  test("passes compression through for every output format and an omitted format", () => {
+    for (const output_format of ["png", "jpeg", "webp", "svg", undefined] as const) {
       const request = buildTextToImageRequest(options(), {
         prompt: "compressed asset",
         output_format,
@@ -155,28 +146,16 @@ describe("OpenRouter image request parameters", () => {
     expect(request.output_compression).toBe(50)
   })
 
-  test("rejects compression for PNG or an unresolved output format", () => {
-    const args = [
-      { output_format: "png", output_compression: 73 },
-      { output_compression: 73 },
-    ] as const
-
-    for (const invalid of args) {
-      const error = getPluginError(() =>
-        buildTextToImageRequest(options(), {
-          prompt: "invalid compression",
-          ...invalid,
-        }),
-      )
-      expect(error.code).toBe("GENIMAGE_PARAMETER_UNSUPPORTED")
-    }
+  test("accepts a negative integer seed", () => {
+    expect(
+      buildTextToImageRequest(options(), { prompt: "seeded", seed: -42 }).seed,
+    ).toBe(-42)
   })
 
   test("rejects invalid resolution, aspect ratio, and seed", () => {
     const invalidArgs: unknown[] = [
       { prompt: "invalid", resolution: "8K" },
       { prompt: "invalid", aspect_ratio: "7:3" },
-      { prompt: "invalid", seed: -1 },
       { prompt: "invalid", seed: 1.5 },
     ]
 

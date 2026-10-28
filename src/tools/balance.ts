@@ -1,6 +1,7 @@
 import { tool } from "@opencode-ai/plugin"
 
 import { redactSecrets } from "../logging.js"
+import type { OpenRouterBudget } from "../openrouter/client.js"
 import { isPluginError } from "../openrouter/errors.js"
 import { requireResolvedPluginOptions } from "../config/resolve.js"
 import { throwIfAborted } from "../utils/abort.js"
@@ -22,10 +23,37 @@ function addBooleanLine(lines: string[], label: string, value: boolean | undefin
 
 function safeInlineText(value: string): string {
   return redactSecrets(value)
-    .replace(/data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+/giu, "[REDACTED]")
+    .replace(/data:image\/(?:png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+/giu, "[REDACTED]")
     .replace(/[A-Za-z0-9+/]{96,}={0,2}/gu, "[REDACTED]")
     .replace(/[\u0000-\u001f\u007f]+/gu, " ")
     .slice(0, 160)
+}
+
+function safeBudget(budget: OpenRouterBudget) {
+  return {
+    scope: safeInlineText(budget.scope),
+    limitUsd: budget.limit_usd,
+    spendUsd: budget.spend_usd,
+    remainingUsd: budget.remaining_usd,
+    resetInterval: budget.reset_interval,
+    resetsAt:
+      budget.resets_at === null ? null : safeInlineText(budget.resets_at),
+    includeByok: budget.include_byok,
+  }
+}
+
+function addBudgetLines(
+  lines: string[],
+  label: string,
+  budget: ReturnType<typeof safeBudget>,
+): void {
+  lines.push(`- ${label} scope: ${budget.scope}`)
+  addMoneyLine(lines, `${label} limit`, budget.limitUsd)
+  addMoneyLine(lines, `${label} spend`, budget.spendUsd)
+  addMoneyLine(lines, `${label} remaining`, budget.remainingUsd)
+  lines.push(`- ${label} reset interval: ${budget.resetInterval ?? "none"}`)
+  lines.push(`- ${label} resets at: ${budget.resetsAt ?? "never"}`)
+  addBooleanLine(lines, `${label} includes BYOK`, budget.includeByok)
 }
 
 export function createBalanceTool(dependencies: ToolDependencies) {
@@ -70,6 +98,11 @@ export function createBalanceTool(dependencies: ToolDependencies) {
           typeof key.expires_at === "string"
             ? safeInlineText(key.expires_at)
             : key.expires_at
+        const budgets = key.budgets?.map(safeBudget)
+        const effectiveBudget =
+          key.effective_budget === undefined || key.effective_budget === null
+            ? key.effective_budget
+            : safeBudget(key.effective_budget)
 
         const lines = ["OpenRouter API-key usage:"]
         if (key.label !== undefined) {
@@ -99,6 +132,15 @@ export function createBalanceTool(dependencies: ToolDependencies) {
           lines.push(
             `- Limit reset: ${limitReset ?? "none"}`,
           )
+        }
+        if (effectiveBudget !== undefined && effectiveBudget !== null) {
+          addBudgetLines(lines, "Effective budget", effectiveBudget)
+        }
+        if (budgets !== undefined && budgets.length > 0) {
+          lines.push("", "OpenRouter budgets:")
+          budgets.forEach((budget, index) => {
+            addBudgetLines(lines, `Budget ${index + 1}`, budget)
+          })
         }
         addBooleanLine(lines, "Free tier", key.is_free_tier)
         addBooleanLine(lines, "Management key", key.is_management_key)
@@ -139,6 +181,8 @@ export function createBalanceTool(dependencies: ToolDependencies) {
               isFreeTier: key.is_free_tier,
               isManagementKey: key.is_management_key,
               expiresAt,
+              budgets,
+              effectiveBudget,
             },
             accountCredits:
               credits === undefined

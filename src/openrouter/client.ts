@@ -28,6 +28,16 @@ const RETRYABLE_GET_STATUS = new Set([429, 500, 502, 503, 504, 524, 529])
 const MAX_GET_RETRIES = 2
 const MAX_RETRY_DELAY_MS = 30_000
 
+export interface OpenRouterBudget {
+  scope: string
+  limit_usd: number
+  spend_usd: number
+  remaining_usd: number
+  reset_interval: "daily" | "weekly" | "monthly" | null
+  resets_at: string | null
+  include_byok: boolean
+}
+
 export interface OpenRouterKeyInfo {
   label?: string
   usage?: number
@@ -44,6 +54,8 @@ export interface OpenRouterKeyInfo {
   is_free_tier?: boolean
   is_management_key?: boolean
   expires_at?: string | null
+  budgets?: OpenRouterBudget[]
+  effective_budget?: OpenRouterBudget | null
 }
 
 export interface OpenRouterCredits {
@@ -146,17 +158,18 @@ function optionalLimitReset(
   return value
 }
 
-function optionalExpiryTimestamp(
+function optionalTimestamp(
   record: Record<string, unknown>,
+  name: string,
 ): string | null | undefined {
-  const value = optionalNullableString(record, "expires_at")
+  const value = optionalNullableString(record, name)
   if (
     typeof value === "string" &&
     (value.length > 64 ||
       /[\u0000-\u001f\u007f]/u.test(value) ||
       !Number.isFinite(Date.parse(value)))
   ) {
-    throw new TypeError("Invalid string field: expires_at")
+    throw new TypeError(`Invalid string field: ${name}`)
   }
   return value
 }
@@ -169,6 +182,52 @@ function optionalBoolean(
   if (value === undefined) return undefined
   if (typeof value !== "boolean") throw new TypeError(`Invalid boolean field: ${name}`)
   return value
+}
+
+function parseBudget(value: unknown): OpenRouterBudget {
+  if (!isRecord(value)) throw new TypeError("Invalid budget record.")
+  const scope = optionalString(value, "scope")
+  const limitUsd = optionalFiniteNumber(value, "limit_usd")
+  const spendUsd = optionalFiniteNumber(value, "spend_usd")
+  const remainingUsd = optionalFiniteNumber(value, "remaining_usd")
+  const resetInterval = optionalNullableString(value, "reset_interval")
+  const resetsAt = optionalTimestamp(value, "resets_at")
+  const includeByok = optionalBoolean(value, "include_byok")
+  if (
+    scope === undefined ||
+    limitUsd === undefined ||
+    spendUsd === undefined ||
+    remainingUsd === undefined ||
+    resetInterval === undefined ||
+    resetsAt === undefined ||
+    includeByok === undefined ||
+    (resetInterval !== null && !["daily", "weekly", "monthly"].includes(resetInterval))
+  ) {
+    throw new TypeError("Invalid or incomplete budget record.")
+  }
+  return {
+    scope,
+    limit_usd: limitUsd,
+    spend_usd: spendUsd,
+    remaining_usd: remainingUsd,
+    reset_interval: resetInterval as OpenRouterBudget["reset_interval"],
+    resets_at: resetsAt,
+    include_byok: includeByok,
+  }
+}
+
+function parseBudgets(data: Record<string, unknown>): OpenRouterBudget[] | undefined {
+  if (data.budgets === undefined) return undefined
+  if (!Array.isArray(data.budgets)) throw new TypeError("Invalid budgets array.")
+  return data.budgets.map(parseBudget)
+}
+
+function parseEffectiveBudget(
+  data: Record<string, unknown>,
+): OpenRouterBudget | null | undefined {
+  if (data.effective_budget === undefined) return undefined
+  if (data.effective_budget === null) return null
+  return parseBudget(data.effective_budget)
 }
 
 function parseKeyInfo(value: unknown): OpenRouterKeyInfo {
@@ -206,7 +265,9 @@ function parseKeyInfo(value: unknown): OpenRouterKeyInfo {
       "is_management_key",
       optionalBoolean(data, "is_management_key"),
     ),
-    ...optionalProperty("expires_at", optionalExpiryTimestamp(data)),
+    ...optionalProperty("expires_at", optionalTimestamp(data, "expires_at")),
+    ...optionalProperty("budgets", parseBudgets(data)),
+    ...optionalProperty("effective_budget", parseEffectiveBudget(data)),
   }
 }
 
@@ -256,53 +317,193 @@ function safeRequestId(
   return `sha256:${createHash("sha256").update(value).digest("hex").slice(0, 16)}`
 }
 
-function mapStatus(status: number, requestId: string | undefined): PluginError {
+interface OpenRouterFailure {
+  errorType?: string
+  providerCode?: string
+  limitSource?: string
+  reason?: string
+  scope?: string
+  limitUsd?: number
+  spendUsd?: number
+  remainingUsd?: number
+  resetsAt?: string
+  retryAfterMs?: number
+}
+
+function safeErrorIdentifier(
+  record: Record<string, unknown>,
+  name: string,
+): string | undefined {
+  const value = record[name]
+  return typeof value === "string" &&
+    /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u.test(value)
+    ? value
+    : undefined
+}
+
+function safeErrorNumber(
+  record: Record<string, unknown>,
+  name: string,
+): number | undefined {
+  const value = record[name]
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function safeErrorTimestamp(
+  record: Record<string, unknown>,
+  name: string,
+): string | undefined {
+  const value = record[name]
+  return typeof value === "string" &&
+    value.length <= 64 &&
+    !/[\u0000-\u001f\u007f]/u.test(value) &&
+    Number.isFinite(Date.parse(value))
+    ? value
+    : undefined
+}
+
+function parseFailure(value: unknown): OpenRouterFailure {
+  if (!isRecord(value) || !isRecord(value.error)) return {}
+  const metadata = isRecord(value.error.metadata) ? value.error.metadata : {}
+  return {
+    ...optionalProperty("errorType", safeErrorIdentifier(metadata, "error_type")),
+    ...optionalProperty("providerCode", safeErrorIdentifier(metadata, "provider_code")),
+    ...optionalProperty("limitSource", safeErrorIdentifier(metadata, "limit_source")),
+    ...optionalProperty("reason", safeErrorIdentifier(metadata, "reason")),
+    ...optionalProperty("scope", safeErrorIdentifier(metadata, "scope")),
+    ...optionalProperty("limitUsd", safeErrorNumber(metadata, "limit_usd")),
+    ...optionalProperty("spendUsd", safeErrorNumber(metadata, "spend_usd")),
+    ...optionalProperty("remainingUsd", safeErrorNumber(metadata, "remaining_usd")),
+    ...optionalProperty("resetsAt", safeErrorTimestamp(metadata, "resets_at")),
+  }
+}
+
+function retrySuggestion(retryAfterMs: number | undefined): string {
+  return retryAfterMs === undefined
+    ? "Wait before retrying; paid image POST requests are not retried automatically."
+    : `Wait at least ${Math.ceil(retryAfterMs / 1_000)} second(s) before retrying; paid image POST requests are not retried automatically.`
+}
+
+function mapStatus(
+  status: number,
+  requestId: string | undefined,
+  failure: OpenRouterFailure = {},
+): PluginError {
   const details = {
     status,
     ...(requestId === undefined ? {} : { requestId }),
+    ...failure,
   }
+  const options = (suggestion?: string) => ({
+    details,
+    ...(suggestion === undefined ? {} : { suggestion }),
+  })
+
+  if (status === 400) {
+    switch (failure.errorType) {
+      case "invalid_image":
+      case "image_too_small":
+        return new PluginError(
+          "GENIMAGE_REFERENCE_INVALID",
+          "OpenRouter could not use an input image.",
+          options(),
+        )
+      case "image_too_large":
+        return new PluginError(
+          "GENIMAGE_REFERENCE_TOO_LARGE",
+          "OpenRouter rejected an input image because it is too large.",
+          options(),
+        )
+      case "unsupported_image_format":
+        return new PluginError(
+          "GENIMAGE_REFERENCE_FORMAT_UNSUPPORTED",
+          "OpenRouter rejected an input image format.",
+          options(),
+        )
+      case "image_not_found":
+        return new PluginError(
+          "GENIMAGE_REFERENCE_NOT_FOUND",
+          "OpenRouter could not find an input image.",
+          options(),
+        )
+      case "image_download_failed":
+        return new PluginError(
+          "GENIMAGE_REFERENCE_URL_INVALID",
+          "OpenRouter could not download a referenced image URL.",
+          options(),
+        )
+      default:
+        return new PluginError(
+          "GENIMAGE_BAD_REQUEST",
+          "OpenRouter rejected the image request.",
+          options(),
+        )
+    }
+  }
+
   switch (status) {
-    case 400:
-      return new PluginError(
-        "GENIMAGE_BAD_REQUEST",
-        "OpenRouter rejected the image request.",
-        { details },
-      )
     case 401:
       return new PluginError(
         "GENIMAGE_OPENROUTER_AUTH",
         "OpenRouter rejected the configured API key.",
-        { details },
+        options(),
       )
     case 402:
+      if (
+        failure.reason === "in_flight_budget_exhausted" ||
+        failure.limitSource === "openrouter_in_flight_budget"
+      ) {
+        return new PluginError(
+          "GENIMAGE_INSUFFICIENT_CREDITS",
+          "OpenRouter temporarily rejected the request because the in-flight spending budget is exhausted.",
+          options(retrySuggestion(failure.retryAfterMs)),
+        )
+      }
       return new PluginError(
         "GENIMAGE_INSUFFICIENT_CREDITS",
         "OpenRouter reports insufficient credits for this request.",
-        { details },
+        options("Check the account balance and API-key spending limit before retrying."),
       )
     case 403:
+      if (failure.limitSource !== undefined) {
+        return new PluginError(
+          "GENIMAGE_OPENROUTER_FORBIDDEN",
+          "OpenRouter rejected the request because a spending budget is exhausted.",
+          options(
+            failure.resetsAt === undefined
+              ? "Check the applicable budget or contact its administrator before retrying."
+              : `Check the applicable budget; its documented reset time is ${failure.resetsAt}.`,
+          ),
+        )
+      }
       return new PluginError(
         "GENIMAGE_OPENROUTER_FORBIDDEN",
         "OpenRouter denied this request.",
-        { details },
+        options(),
+      )
+    case 408:
+      return new PluginError(
+        "GENIMAGE_TIMEOUT",
+        "OpenRouter timed out while processing the request.",
+        options(),
       )
     case 413:
       return new PluginError(
         "GENIMAGE_REQUEST_TOO_LARGE",
         "OpenRouter rejected the request because it is too large.",
-        { details },
+        options(),
       )
     case 429:
       return new PluginError(
         "GENIMAGE_RATE_LIMITED",
         "OpenRouter rate-limited this request.",
-        { details },
+        options(retrySuggestion(failure.retryAfterMs)),
       )
     default:
       return new PluginError(
         "GENIMAGE_PROVIDER_ERROR",
         "OpenRouter could not complete the request.",
-        { details },
+        options(),
       )
   }
 }
@@ -577,7 +778,7 @@ export class DefaultOpenRouterImageClient implements OpenRouterImageClient {
           if (options.method === "POST") {
             throw new PluginError(
               "GENIMAGE_REQUEST_STATUS_UNKNOWN",
-              "The connection ended before OpenRouter confirmed the generation status. The request was not retried to avoid duplicate charges.",
+              "The connection ended before OpenRouter confirmed the generation status. The request was not retried to avoid duplicate generation.",
               {
                 cause: error,
                 suggestion:
@@ -630,8 +831,24 @@ export class DefaultOpenRouterImageClient implements OpenRouterImageClient {
         }
 
         if (!response.ok) {
-          await response.body?.cancel().catch(() => {})
-          throw mapStatus(response.status, requestId)
+          const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"))
+          let failure: OpenRouterFailure = {
+            ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+          }
+          try {
+            const bytes = await readBoundedBody(
+              response,
+              this.#options.maxResponseBytes,
+              deadline.signal,
+            )
+            failure = {
+              ...failure,
+              ...parseFailure(JSON.parse(new TextDecoder().decode(bytes)) as unknown),
+            }
+          } catch (error) {
+            if (options.signal.aborted) throw error
+          }
+          throw mapStatus(response.status, requestId, failure)
         }
 
         let bytes: Uint8Array
@@ -656,7 +873,7 @@ export class DefaultOpenRouterImageClient implements OpenRouterImageClient {
           if (options.method === "POST") {
             throw new PluginError(
               "GENIMAGE_REQUEST_STATUS_UNKNOWN",
-              "OpenRouter accepted the request but its response ended before the generated image could be read. The request was not retried to avoid duplicate charges.",
+              "OpenRouter accepted the request but its response ended before the generated image could be read. The request was not retried to avoid duplicate generation.",
               { cause: error },
             )
           }

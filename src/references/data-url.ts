@@ -5,7 +5,7 @@ import {
   detectImageFormat,
   isSupportedImageMime,
   type DetectedImageFormat,
-  type RasterImageMime,
+  type OutputImageMime,
 } from "./formats.js"
 
 export interface DecodedImageData {
@@ -80,7 +80,7 @@ export function decodeStrictBase64(value: string, maximumBytes?: number): Buffer
 
 export function imageBytesToDataUrl(
   bytes: Uint8Array,
-  mime: RasterImageMime,
+  mime: OutputImageMime,
 ): string {
   return `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`
 }
