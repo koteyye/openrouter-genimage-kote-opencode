@@ -172,10 +172,11 @@ Project install writes `.opencode/skills/openrouter-image-generation/SKILL.md`; 
 
 ## Balance and usage
 
-Run `/openrouter-balance` or call `openrouter_balance`. The result keeps two concepts separate:
+Run `/openrouter-balance` or call `openrouter_balance`. The result keeps three concepts separate:
 
-- `/key` reports usage and the spending limit of the configured API key, including the remaining API-key limit;
-- `/credits` reports total account credits and total account usage, and requires a management key.
+- `/key` reports usage, the configured API-key spending limit, configured budgets, and the effective budget;
+- `/credits` reports total account credits and total account usage, and requires a management key;
+- the effective budget can block spending before the API-key limit is exhausted.
 
 The remaining spending limit of one key is not the OpenRouter account balance. Without management authorization, account credits are reported as unavailable. A successful `/key` response is still returned if `/credits` fails.
 
@@ -193,7 +194,7 @@ See [Security](docs/security.md) and [SECURITY.md](SECURITY.md).
 
 ## Version 0.1.0 limitations
 
-No masks or pixel-local inpainting, interactive editor, LoRA training, video, streaming generation, SVG results, provider-specific options, automatic credit purchase, automatic model selection, hidden fallback, or external object storage are included. Only PNG, JPEG, and WebP raster inputs/results are supported. Seeds do not promise reproducibility across providers. OpenRouter may return fewer images than requested; valid partial results are preserved with warnings.
+No masks or pixel-local inpainting, interactive editor, LoRA training, video, streaming generation, provider-specific options, automatic credit purchase, automatic model selection, hidden fallback, or external object storage are included. PNG, JPEG, and WebP inputs are supported; outputs additionally support validated safe SVG. Seeds do not promise reproducibility across providers. OpenRouter may return fewer images than requested; valid partial results are preserved with warnings.
 
 ## Troubleshooting
 

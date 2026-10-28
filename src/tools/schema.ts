@@ -28,7 +28,7 @@ export const generationToolArgs = {
   output_compression: tool.schema.number().int().min(0).max(100).optional(),
   quality: tool.schema.enum(IMAGE_QUALITIES).optional(),
   resolution: tool.schema.enum(IMAGE_RESOLUTIONS).optional(),
-  seed: tool.schema.number().int().nonnegative().optional(),
+  seed: tool.schema.number().int().optional(),
 }
 
 export const imageReferenceSchema = tool.schema.discriminatedUnion("type", [

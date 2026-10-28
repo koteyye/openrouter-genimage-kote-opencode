@@ -70,3 +70,43 @@ export function extensionForFormat(
 ): DetectedImageFormat["extension"] {
   return format === "png" ? ".png" : format === "jpeg" ? ".jpeg" : ".webp"
 }
+
+export type OutputImageFormat = RasterImageFormat | "svg"
+export type OutputImageMime = RasterImageMime | "image/svg+xml"
+
+export interface DetectedOutputImageFormat {
+  format: OutputImageFormat
+  mime: OutputImageMime
+  extension: ".png" | ".jpeg" | ".webp" | ".svg"
+}
+
+const SVG_DOCUMENT =
+  /^(?:\s|<\?xml[\s\S]*?\?>|<!--[\s\S]*?-->)*<svg(?:\s[^>]*)?(?:\/>|>[\s\S]*<\/svg>)(?:\s|<!--[\s\S]*?-->)*$/iu
+const SVG_UNSAFE_CONTENT =
+  /<!(?:DOCTYPE|ENTITY)\b|<(?:script|foreignObject|iframe|object|embed)\b|\son[a-z]+\s*=|javascript\s*:|data\s*:\s*text\/html|(?:href|src)\s*=\s*["']\s*(?:https?:)?\/\/|url\(\s*["']?(?:https?:)?\/\//iu
+
+function detectSvg(bytes: Uint8Array): DetectedOutputImageFormat | undefined {
+  let text: string
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+  } catch {
+    return undefined
+  }
+  const document = text.replace(/^\uFEFF/u, "")
+  if (SVG_UNSAFE_CONTENT.test(document) || !SVG_DOCUMENT.test(document)) return undefined
+  return { format: "svg", mime: "image/svg+xml", extension: ".svg" }
+}
+
+export function detectOutputImageFormat(
+  bytes: Uint8Array,
+): DetectedOutputImageFormat | undefined {
+  return detectImageFormat(bytes) ?? detectSvg(bytes)
+}
+
+export function isSupportedOutputImageMime(value: string): value is OutputImageMime {
+  return isSupportedImageMime(value) || value === "image/svg+xml"
+}
+
+export function outputFormatFromExtension(extension: string): OutputImageFormat | undefined {
+  return extension.toLowerCase() === ".svg" ? "svg" : formatFromExtension(extension)
+}

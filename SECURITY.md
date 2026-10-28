@@ -24,7 +24,7 @@ If a key may have been exposed, revoke it in OpenRouter immediately and replace 
 
 ## Security boundaries
 
-Production OpenRouter origin is fixed; redirects fail; paid image POSTs are not retried; proxy mode is fail-closed; and the plugin must not install a global fetch interceptor. Project input/output is confined to the OpenCode worktree with lexical and realpath checks. Source and existing output files are never overwritten. PNG/JPEG/WebP content is checked by size and magic bytes.
+Production OpenRouter origin is fixed; redirects fail; paid image POSTs are not retried; proxy mode is fail-closed; and the plugin must not install a global fetch interceptor. Project input/output is confined to the OpenCode worktree with lexical and realpath checks. Source and existing output files are never overwritten. PNG/JPEG/WebP content is checked by size and magic bytes. SVG is output-only and must pass strict UTF-8, document-structure, and active/external-content validation.
 
 The plugin must not persist or log keys, full prompts, base64, binary data, unredacted request/response bodies, full external URLs with query strings, or gateway bootstrap data. In proxy mode, keys and image content remain inside TLS to OpenRouter and are not proxy credentials.
 

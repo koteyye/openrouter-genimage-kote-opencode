@@ -16,11 +16,11 @@ Redaction covers at least `sk-or-*`, bearer/authorization values, proxy authoriz
 
 Production OpenRouter origin is fixed to `https://openrouter.ai/api/v1`. User-configurable base URLs are intentionally absent to prevent accidental key disclosure. Redirects are handled manually and all 3xx responses fail, so authorization is never forwarded to a redirect target.
 
-Idempotent GETs may retry only temporary statuses, at most twice. `POST /images` is never automatically retried because its charge/result may be ambiguous. A lost connection after submission returns `GENIMAGE_REQUEST_STATUS_UNKNOWN`.
+Idempotent GETs may retry only temporary statuses, at most twice. `POST /images` is never automatically retried because its result may be ambiguous and a manual retry could duplicate generation. A lost connection after submission returns `GENIMAGE_REQUEST_STATUS_UNKNOWN`. OpenRouter documents failed or cancelled image generations as unbilled.
 
 Explicit tool URLs must use HTTPS, contain no username/password, and stay within a bounded length. The plugin does not attach OpenRouter authorization to external URLs and does not automatically download arbitrary tool-supplied URLs. Internal OpenCode attachment URLs are resolved through trusted SDK/context mechanisms and are never forwarded externally.
 
-Response bodies and decoded image bytes have independent configured limits. All operations combine caller abort, timeout, and transport abort.
+Response bodies and decoded image bytes have independent configured limits. All operations combine caller abort, timeout, and transport abort. Error responses expose only allowlisted metadata fields, never upstream messages or complete bodies.
 
 ## KoteGateway
 
@@ -34,7 +34,7 @@ Synthetic network tests exercise both load orders with one real CONNECT and veri
 
 Project input/output paths are relative to `context.worktree`. Absolute Unix paths, Windows drive paths, UNC paths, `..` traversal, directories, and realpath/symlink escapes are rejected. Project references must be regular files.
 
-Input and output are limited to PNG, JPEG, and WebP and validated by magic bytes rather than extension/MIME alone. Source images are not modified or transcoded on disk. Output cannot overwrite a source or existing destination. Complete temporary writes are atomically published without replacement; failures clean up temporary data.
+Inputs are limited to PNG, JPEG, and WebP and validated by magic bytes rather than extension/MIME alone. Outputs additionally support SVG after strict UTF-8, document-structure, and active/external-content validation. Source images are not modified or transcoded on disk. Output cannot overwrite a source or existing destination. Complete temporary writes are atomically published without replacement; failures clean up temporary data.
 
 Static symlink and junction escapes are rejected and local reads stay on one bounded file handle. The worktree itself remains an operating-system trust boundary: a hostile local process that can rename directories concurrently with an operation can create filesystem races that portable Node.js APIs cannot close with descriptor-relative `openat` operations. Do not run the plugin against a worktree concurrently controlled by an untrusted local account.
 

@@ -1,6 +1,6 @@
 export const OPENROUTER_BALANCE_COMMAND = {
   description:
-    "Show OpenRouter usage, key limits, and account credits when available",
+    "Show OpenRouter usage, key limits, budgets, and account credits when available",
   template: `
 Call the openrouter_balance tool exactly once.
 
@@ -10,6 +10,7 @@ Clearly distinguish:
 - API-key usage;
 - API-key spending limit;
 - remaining API-key spending limit;
+- configured budgets and the effective budget;
 - full account credits.
 
 Do not treat the remaining key limit as the full account balance.

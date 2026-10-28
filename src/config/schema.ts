@@ -18,33 +18,18 @@ function addParameterCompatibilityChecks(
   parameters: {
     background?: string | undefined
     output_format?: string | undefined
-    output_compression?: number | undefined
   },
   context: z.RefinementCtx,
-  requireCompressionFormat = true,
 ): void {
   if (
     parameters.background === "transparent" &&
-    ((requireCompressionFormat && parameters.output_format === undefined) ||
-      parameters.output_format === "jpeg")
-  ) {
-    context.addIssue({
-      code: "custom",
-      path: ["background"],
-      message: "Transparent backgrounds are not supported for JPEG output.",
-    })
-  }
-
-  if (
-    parameters.output_compression !== undefined &&
-    (requireCompressionFormat || parameters.output_format !== undefined) &&
-    parameters.output_format !== "jpeg" &&
+    parameters.output_format !== "png" &&
     parameters.output_format !== "webp"
   ) {
     context.addIssue({
       code: "custom",
-      path: ["output_compression"],
-      message: "Output compression requires JPEG or WebP output.",
+      path: ["background"],
+      message: "Transparent backgrounds require PNG or WebP output.",
     })
   }
 }
@@ -71,7 +56,7 @@ export const generationParametersSchema = z
     output_compression: z.number().int().min(0).max(100).optional(),
     quality: z.enum(IMAGE_QUALITIES).optional(),
     resolution: z.enum(IMAGE_RESOLUTIONS).optional(),
-    seed: z.number().int().nonnegative().optional(),
+    seed: z.number().int().optional(),
   })
   .superRefine(addParameterCompatibilityChecks)
 
@@ -100,11 +85,9 @@ export const generateImageArgsSchema = z
     output_compression: z.number().int().min(0).max(100).optional(),
     quality: z.enum(IMAGE_QUALITIES).optional(),
     resolution: z.enum(IMAGE_RESOLUTIONS).optional(),
-    seed: z.number().int().nonnegative().optional(),
+    seed: z.number().int().optional(),
   })
-  .superRefine((args, context) => {
-    addParameterCompatibilityChecks(args, context, false)
-  })
+  .superRefine(addParameterCompatibilityChecks)
 
 const pluginInputSchema = z
   .strictObject({

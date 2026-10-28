@@ -14,7 +14,7 @@ import {
   saveImages,
   type ValidatedImage,
 } from "../../src/output/index.js"
-import { detectImageFormat } from "../../src/references/formats.js"
+import { detectOutputImageFormat } from "../../src/references/formats.js"
 
 const temporaryRoots: string[] = []
 
@@ -39,9 +39,12 @@ const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00])
 const WEBP_BYTES = Buffer.from([
   0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
 ])
+const SVG_BYTES = Buffer.from(
+  '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><path d="M0 0h1v1z"/></svg>',
+)
 
 function validated(bytes: Buffer, warnings: string[] = []): ValidatedImage {
-  const detected = detectImageFormat(bytes)
+  const detected = detectOutputImageFormat(bytes)
   if (detected === undefined) throw new Error("invalid test fixture")
   return { bytes, detected, warnings }
 }
@@ -101,12 +104,35 @@ describe("output format validation", () => {
     expect(result.warnings.join("\n")).toContain("although PNG was requested")
   })
 
-  test("rejects malformed base64, SVG, empty data, and oversized data", () => {
+  test("decodes safe SVG as UTF-8 without changing its bytes", () => {
+    const result = decodeOutputImage(
+      { b64_json: SVG_BYTES.toString("base64"), media_type: "image/svg+xml" },
+      { maxDecodedBytes: 1024, expectedFormat: "svg" },
+    )
+
+    expect(result.bytes).toEqual(SVG_BYTES)
+    expect(result.detected).toEqual({
+      format: "svg",
+      mime: "image/svg+xml",
+      extension: ".svg",
+    })
+    expect(result.warnings).toEqual([])
+  })
+
+  test("rejects malformed base64, unsafe SVG, empty data, and oversized data", () => {
+    const unsafeSvg = [
+      "<svg><script>alert(1)</script></svg>",
+      '<svg onload="alert(1)"/>',
+      '<svg><image href="https://example.test/pixel"/></svg>',
+      "<!DOCTYPE svg><svg/>",
+      "<svg>",
+    ]
     const invalid = [
       { b64_json: "%%%" },
-      { b64_json: Buffer.from("<svg/>").toString("base64") },
       { b64_json: "" },
       { b64_json: PNG_BYTES.toString("base64"), maximum: 4 },
+      { b64_json: Buffer.from([0xff, 0xfe, 0xfd]).toString("base64") },
+      ...unsafeSvg.map((svg) => ({ b64_json: Buffer.from(svg).toString("base64") })),
     ]
 
     for (const item of invalid) {
@@ -230,6 +256,30 @@ describe("atomic image saving", () => {
     expect(await readFile(path.join(worktree, "nested/icons/potion.png"))).toEqual(
       PNG_BYTES,
     )
+  })
+
+  test("saves SVG with the actual extension and an SVG attachment", async () => {
+    const worktree = await temporaryWorktree()
+    const [saved] = await saveImages({
+      images: [validated(SVG_BYTES)],
+      outputPath: "assets/requested.png",
+      outputDirectory: "unused",
+      worktree,
+    })
+    if (saved === undefined) throw new Error("missing saved SVG")
+
+    expect(saved.relativePath).toBe("assets/requested.svg")
+    expect(saved.mime).toBe("image/svg+xml")
+    expect(saved.warnings.join("\n")).toContain("did not match")
+    expect(await readFile(path.join(worktree, saved.relativePath))).toEqual(SVG_BYTES)
+    expect(createToolAttachments([saved])).toEqual([
+      {
+        type: "file",
+        mime: "image/svg+xml",
+        filename: "requested.svg",
+        url: `data:image/svg+xml;base64,${SVG_BYTES.toString("base64")}`,
+      },
+    ])
   })
 
   test("uses the actual magic-byte extension and reports a warning", async () => {

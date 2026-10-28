@@ -10,7 +10,7 @@ import type { ToolDependencies } from "./types.js"
 
 export function createEditImageTool(dependencies: ToolDependencies) {
   return tool({
-    description: `Edit, transform, or create a new raster image from one or more visual references using the OpenRouter image model configured by the user.
+    description: `Edit, transform, or create a new image from one or more visual references using the OpenRouter image model configured by the user.
 
 Use this tool when the user wants to modify an attached image, create a variation, preserve a character or object, transfer a style, or create a new asset based on visual references.
 

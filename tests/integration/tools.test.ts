@@ -368,6 +368,39 @@ describe("balance tool", () => {
     expect(result.output).not.toContain("Lifetime usage: $0.000000")
   })
 
+  test("reports effective and configured budgets with sanitized metadata", async () => {
+    const worktree = await temporaryDirectory()
+    const budget = {
+      scope: "member",
+      limit_usd: 50,
+      spend_usd: 40,
+      remaining_usd: 10,
+      reset_interval: "weekly" as const,
+      resets_at: "2026-10-12T00:00:00.000Z",
+      include_byok: false,
+    }
+    const result = await createBalanceTool(
+      dependencies({
+        worktree,
+        key: {
+          limit: 100,
+          limit_remaining: 74.5,
+          budgets: [budget, { ...budget, scope: "Bearer secret-token" }],
+          effective_budget: budget,
+        },
+      }),
+    ).execute({}, context(worktree))
+    if (typeof result === "string") throw new Error("expected structured result")
+
+    expect(result.output).toContain("Effective budget scope: member")
+    expect(result.output).toContain("Effective budget remaining: $10.000000")
+    expect(result.output).toContain("Budget 1 reset interval: weekly")
+    expect(result.output).toContain("Budget 2 scope: [REDACTED]")
+    expect(JSON.stringify(result.metadata)).toContain('"effectiveBudget"')
+    expect(JSON.stringify(result.metadata)).toContain('"remainingUsd":10')
+    expect(JSON.stringify(result)).not.toContain("secret-token")
+  })
+
   test("returns key data when credits fail", async () => {
     const worktree = await temporaryDirectory()
     const result = await createBalanceTool(

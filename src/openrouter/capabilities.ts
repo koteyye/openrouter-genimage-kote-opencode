@@ -44,6 +44,14 @@ function apiKeyFingerprint(apiKey: string): string {
   return createHash("sha256").update(apiKey).digest("hex").slice(0, 12)
 }
 
+const ROUTING_VARIANTS = new Set(["nitro", "floor", "exacto", "online"])
+
+export function resolveImageModelCatalogId(model: string): string {
+  const [base, ...variants] = model.split(":")
+  const catalogVariants = variants.filter((variant) => !ROUTING_VARIANTS.has(variant))
+  return [base, ...catalogVariants].join(":")
+}
+
 function parameterEntries(
   request: OpenRouterImageRequest,
 ): Array<readonly [string, string | number | boolean | readonly unknown[]]> {
@@ -69,13 +77,23 @@ function parameterEntries(
   return result
 }
 
+const IGNORABLE_WHEN_UNADVERTISED = new Set(["quality", "output_compression"])
+
+function parameterSupported(
+  supported: SupportedParameters,
+  name: string,
+  value: string | number | boolean | readonly unknown[],
+): boolean {
+  const descriptor = supported[name]
+  if (descriptor === undefined && IGNORABLE_WHEN_UNADVERTISED.has(name)) return true
+  return capabilitySupports(descriptor, value)
+}
+
 function supportsAllParameters(
   supported: SupportedParameters,
   parameters: ReturnType<typeof parameterEntries>,
 ): boolean {
-  return parameters.every(([name, value]) =>
-    capabilitySupports(supported[name], value),
-  )
+  return parameters.every(([name, value]) => parameterSupported(supported, name, value))
 }
 
 export class ModelCapabilityService {
@@ -135,7 +153,7 @@ export class ModelCapabilityService {
 
     const definitelyUnsupported = parameters.find(([name, value]) =>
       record.parameterSets.every(
-        (set) => !capabilitySupports(set[name], value),
+        (set) => !parameterSupported(set, name, value),
       ),
     )
 
@@ -204,7 +222,8 @@ export class ModelCapabilityService {
 
   async #loadRecord(signal: AbortSignal): Promise<CapabilityRecord> {
     const models = await this.#client.listImageModels(signal)
-    const model = models.find((candidate) => candidate.id === this.#options.model)
+    const catalogId = resolveImageModelCatalogId(this.#options.model)
+    const model = models.find((candidate) => candidate.id === catalogId)
     if (model === undefined) {
       throw new PluginError(
         "GENIMAGE_MODEL_NOT_FOUND",
@@ -221,7 +240,7 @@ export class ModelCapabilityService {
         model.endpoints,
         signal,
       )
-      if (endpointResponse.id !== model.id || endpointResponse.endpoints.length === 0) {
+      if (endpointResponse.id !== catalogId || endpointResponse.endpoints.length === 0) {
         throw new PluginError(
           "GENIMAGE_RESPONSE_INVALID",
           "OpenRouter returned invalid endpoint capabilities for the configured model.",

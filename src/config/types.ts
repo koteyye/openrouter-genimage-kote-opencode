@@ -7,12 +7,16 @@ export const IMAGE_ASPECT_RATIOS = [
   "1:8",
   "2:1",
   "2:3",
+  "2.35:1",
   "3:2",
   "3:4",
   "4:1",
   "4:3",
   "4:5",
+  "5:2",
   "5:4",
+  "5:7",
+  "7:5",
   "8:1",
   "9:16",
   "16:9",
@@ -26,9 +30,9 @@ export const IMAGE_ASPECT_RATIOS = [
 ] as const
 
 export const IMAGE_BACKGROUNDS = ["auto", "transparent", "opaque"] as const
-export const IMAGE_OUTPUT_FORMATS = ["png", "jpeg", "webp"] as const
-export const IMAGE_QUALITIES = ["auto", "low", "medium", "high"] as const
-export const IMAGE_RESOLUTIONS = ["512", "1K", "2K", "4K"] as const
+export const IMAGE_OUTPUT_FORMATS = ["png", "jpeg", "webp", "svg"] as const
+export const IMAGE_QUALITIES = ["auto", "low", "medium", "high", "xhigh", "max"] as const
+export const IMAGE_RESOLUTIONS = ["512", "768", "1K", "1.5K", "2K", "4K"] as const
 export const ROUTING_MODES = ["direct", "proxy"] as const
 
 export type ImageAspectRatio = (typeof IMAGE_ASPECT_RATIOS)[number]

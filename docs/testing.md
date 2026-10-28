@@ -24,21 +24,22 @@ bun run package:smoke
 
 ## Unit coverage
 
-Unit tests cover strict configuration and environment-key resolution; ordered attachment/project/HTTPS references; MIME, magic-byte, base64, path, count, and size validation; generation parameter ranges and cross-field rules; model/capability caching; response parsing and partial success; atomic collision-safe output; balance terminology and partial credits failure; and redaction of secrets, prompts, and base64.
+Unit tests cover strict configuration and environment-key resolution; ordered attachment/project/HTTPS references; MIME, magic-byte, base64, path, count, and size validation; generation parameter ranges and cross-field rules; routing/catalog model variants and capability caching; safe SVG and raster response parsing; atomic collision-safe output; budgets, balance terminology and partial credits failure; and redaction of secrets, prompts, and base64.
 
 Important invariants include:
 
 - edit requires a reference and cannot become text-to-image;
-- model always comes from configuration;
+- model always comes from configuration and routing variants change only metadata lookup;
 - `n` is 1–10 and reference count is 1–16;
-- transparent JPEG and PNG compression fail locally;
+- transparent output requires PNG or WebP, while compression passes through where OpenRouter ignores it;
+- SVG is output-only and unsafe active/external SVG content fails locally;
 - source/existing files cannot be overwritten;
 - absolute/traversing/symlink-escaping paths fail;
-- key limit is never labeled account balance.
+- key limit and effective budget are never labeled account balance.
 
 ## Synthetic integration coverage
 
-OpenRouter client tests use an injected fetch implementation to verify exact endpoints, authorization separation, manual redirect behavior, GET retry, no POST retry, timeout/abort, bounded bodies, and sanitized upstream failures. They do not start a real HTTPS server.
+OpenRouter client tests use an injected fetch implementation to verify exact endpoints, authorization separation, manual redirect behavior, GET retry, no POST retry, timeout/abort, bounded bodies, typed error metadata, budget diagnostics, and sanitized upstream failures. They do not start a real HTTPS server.
 
 Tool integration tests decode received data URLs and compare bytes, preserve multiple-reference order, preserve prompts, use only the configured model, save results, and return attachment-shaped tool results.
 
